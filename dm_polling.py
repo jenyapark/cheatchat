@@ -1,11 +1,12 @@
 # dm_polling.py
 import time, requests
 from slack_bot.storage import storage
+import itertools
 from slack_bot.llm_engine import generate_reply_candidates
 
 HEADERS = None
 MY_ID = None
-last_seen = {} 
+last_seen = storage.load_last_ts()
 
 def load_token():
     global MY_ID, HEADERS
@@ -37,50 +38,61 @@ def fetch_dms():
 
 def fetch_new_messages(channel):
     url = "https://slack.com/api/conversations.history"
-    params = {"channel": channel, "limit": 5}
+    params = {"channel": channel, "limit": 20}
     res = requests.get(url, headers=HEADERS, params=params).json()
 
+    if not res.get("ok"):
+        print("[ERROR] conversations.history:", res)
+        return []
+
     messages = res.get("messages", [])
+    if not messages:
+        return []
 
-    last = last_seen.get(channel, "0")
+    # Slack은 최신 메시지가 index 0
+    last_ts = float(last_seen.get(channel, 0))
 
-    new_msgs = [m for m in messages if m["ts"] > last and "user" in m]
+    # ts는 float로 비교
+    fresh = [
+        m for m in messages
+        if "ts" in m and float(m["ts"]) > last_ts and "user" in m
+    ]
 
-    if messages:
-        last_seen[channel] = messages[0]["ts"]
+    # fresh 가 있으면 timestamp 갱신
+    if fresh:
+        newest_ts = max(float(m["ts"]) for m in fresh)
+        last_seen[channel] = str(newest_ts)
+        storage.save_last_ts(last_seen)
 
-    return new_msgs
+    return fresh
 
-last_ts_map = {}
+
 def start_polling_loop():
 
     while not load_token():
         time.sleep(3)
+    
+    dms = fetch_dms()
+    dm_cycle = itertools.cycle(dms)
 
     while True:
-        dms = fetch_dms()
 
-        for dm in dms:
-            last_ts = last_ts_map.get(dm, "0")
-            messages = fetch_new_messages(dm)
+        dm = next(dm_cycle)
 
-            fresh_msgs = [
-                m for m in messages
-                if float(m.get("ts", 0)) > float(last_ts)
-            ]
-            if fresh_msgs:
-                last_ts_map[dm] = fresh_msgs[-1]["ts"]
+        messages = fetch_new_messages(dm)
 
-            for msg in fresh_msgs:
+        if messages:
+            for msg in messages:
                 user = msg.get("user")
                 text = msg.get("text", "")
 
-                # 내 메시지는 무시
                 if user == MY_ID:
                     continue
 
                 storage.save_incoming(dm, text)
-                cands = generate_reply_candidates(text)
+                cands = generate_reply_candidates(text, tone="friendly_formal")
                 storage.save_candidates(dm, cands)
 
+        # 한 번에 하나의 DM만 처리함 → Rate 제한 보호
         time.sleep(2)
+        

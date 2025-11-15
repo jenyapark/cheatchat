@@ -1,6 +1,6 @@
 # routes/ui.py
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Query
 from slack_bot.llm_engine import generate_reply_candidates
 import requests, os, time
 from slack_bot.storage import storage
@@ -82,9 +82,25 @@ def list_messages():
     return {"conversations": conversations}
 
 @router.get("/ui/messages/{conv_id}")
-def get_message(conv_id: str):
+def get_message(conv_id: str, tone: str = Query("friendly_formal")):
     data = storage.get_conversation(conv_id)
-    return data   
+    messages = data.get("messages", [])
+
+    last_incoming = None
+    for m in reversed(messages):
+        if m.get("direction") == "incoming":
+            last_incoming = m["text"]
+            break
+
+    if last_incoming:
+        candidates = generate_reply_candidates(last_incoming, tone=tone)
+    else:
+        candidates = []
+
+    return {
+        "messages": messages,
+        "candidates": candidates,
+    }
 
 @router.post("/ui/send")
 def send_message(payload: dict):
