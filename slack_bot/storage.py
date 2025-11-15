@@ -3,6 +3,7 @@ import json
 import os, time
 
 ALIAS_FILE = "aliases.json"
+LAST_TS_FILE = "last_ts.json"
 
 class MemoryStorage:
     def __init__(self):
@@ -11,6 +12,20 @@ class MemoryStorage:
         self.usernames = {}  
         self.alias = {}
         self.last_read = {}
+
+    @staticmethod
+    def load_last_ts():
+        if not os.path.exists(LAST_TS_FILE):
+            return {}
+        try:
+            with open(LAST_TS_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return {}
+    @staticmethod
+    def save_last_ts(map_data):
+        with open(LAST_TS_FILE, "w") as f:
+            json.dump(map_data, f)
 
     def mark_read(self, conv_id):
         self.last_read[conv_id] = time.time()

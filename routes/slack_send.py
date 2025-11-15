@@ -7,7 +7,7 @@ from slack_bot.llm_engine import generate_ai_response
 router = APIRouter()
 
 @router.post("/send")
-def send_message(request: Request, channel: str = Query(None)):
+def send_message(request: Request, channel: str = Query(None), tone: str = Query("friendly_formal")):
     if not os.path.exists("user_token.txt"):
         return JSONResponse({"error": "User not authenticated yet."}, status_code=401)
 
@@ -28,14 +28,14 @@ def send_message(request: Request, channel: str = Query(None)):
     except Exception:
         data = {}
 
-    user_text = data.get("text", "👋 기본 메시지입니다!")
+    user_text = data.get("text", "기본 메시지입니다!")
 
-    ai_reply = generate_ai_response(user_text)
+    ai_reply = generate_ai_response(user_text, tone = tone)
 
     target = channel or f"@{user_id}"
     payload = {"channel": target, "text": ai_reply}
 
     r = requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=payload)
-    print("💬 chat.postMessage:", r.text)
+    print("chat.postMessage:", r.text)
 
     return JSONResponse({"ok": True, "ai_reply": ai_reply, "slack_response": r.json()})
