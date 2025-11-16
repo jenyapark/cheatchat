@@ -1,8 +1,0 @@
-# .gitignore
-__pycache__/
-.env
-venv/
-*.pyc
-.DS_Store
-utils/config.py
-user_token.txt
