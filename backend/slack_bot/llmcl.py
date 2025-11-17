@@ -8,7 +8,7 @@ from IPython.display import Markdown, display, update_display
 from llmcl2 import partner_msgs, my_msgs
 
 load_dotenv()
-client = WebClient(token="SLACK_BOT_TOKEN")
+client = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
 user_id = "U09QQB0J7S6"  # 내 user id
 partner_id = "U09RBS32291"
 

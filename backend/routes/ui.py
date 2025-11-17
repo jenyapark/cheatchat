@@ -1,7 +1,7 @@
 # routes/ui.py
 
 from fastapi import APIRouter, Request, Query
-from slack_bot.llm_engine import generate_reply_candidates
+from slack_bot.llm_engine import generate_reply_candidates, generate_contextual_reply
 import requests, os, time
 from slack_bot.storage import storage
 
@@ -85,17 +85,8 @@ def list_messages():
 def get_message(conv_id: str, tone: str = Query("friendly_formal")):
     data = storage.get_conversation(conv_id)
     messages = data.get("messages", [])
+    candidates = generate_contextual_reply(messages, tone=tone)
 
-    last_incoming = None
-    for m in reversed(messages):
-        if m.get("direction") == "incoming":
-            last_incoming = m["text"]
-            break
-
-    if last_incoming:
-        candidates = generate_reply_candidates(last_incoming, tone=tone)
-    else:
-        candidates = []
 
     return {
         "messages": messages,
