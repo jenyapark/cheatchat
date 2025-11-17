@@ -82,7 +82,7 @@ export default function Home() {
 
         </div>
       </div>
-      {/* 🔥🔥🔥 [추가 영역 끝] 🔥🔥🔥 */}
+      {/*  [추가 영역 끝]  */}
 
       {list.length === 0 && <div>아직 들어온 DM 없음</div>}
 
