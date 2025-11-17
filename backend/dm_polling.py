@@ -2,7 +2,7 @@
 import time, requests
 from slack_bot.storage import storage
 import itertools
-from slack_bot.llm_engine import generate_reply_candidates
+from slack_bot.llm_engine import generate_reply_candidates, generate_contextual_reply
 
 HEADERS = None
 MY_ID = None
@@ -58,6 +58,8 @@ def fetch_new_messages(channel):
         if "ts" in m and float(m["ts"]) > last_ts and "user" in m
     ]
 
+    fresh = sorted(fresh, key=lambda m: float(m["ts"]))
+
     # fresh 가 있으면 timestamp 갱신
     if fresh:
         newest_ts = max(float(m["ts"]) for m in fresh)
@@ -90,9 +92,6 @@ def start_polling_loop():
                     continue
 
                 storage.save_incoming(dm, text)
-                cands = generate_reply_candidates(text, tone="friendly_formal")
-                storage.save_candidates(dm, cands)
-
         # 한 번에 하나의 DM만 처리함 → Rate 제한 보호
         time.sleep(2)
         

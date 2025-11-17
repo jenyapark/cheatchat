@@ -9,9 +9,13 @@ from llmcl2 import partner_msgs, my_msgs
 
 
 load_dotenv()
+<<<<<<< HEAD
 print(">>> SLACK_BOT_TOKEN =", os.getenv("SLACK_BOT_TOKEN"))
 
 client = WebClient(token="SLACK_BOT_TOKEN")
+=======
+client = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
+>>>>>>> 7e1e71e4ca081889b72a46c8e4140349b53d15b6
 user_id = "U09QQB0J7S6"  # 내 user id
 partner_id = "U09RBS32291"
 

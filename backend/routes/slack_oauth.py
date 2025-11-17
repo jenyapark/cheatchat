@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse, JSONResponse
-import os, requests
+import os, requests, json
 from utils.config import get_env
 
 router = APIRouter()
@@ -26,7 +26,6 @@ def oauth_start():
         "channels:read"
         f"&redirect_uri={SLACK_REDIRECT_URI}"
     )
-    print("OAuth URL:", url)
     return RedirectResponse(url)
 
 @router.get("/oauth/callback")
@@ -45,11 +44,35 @@ def oauth_callback(code: str):
 
     if not data.get("ok"):
         return JSONResponse({"error": data}, status_code=400)
+    
+    user = data["authed_user"]
+    user_id = user["id"]
+    user_token = user["access_token"]
 
-    user_token = data["authed_user"]["access_token"]
-    user_id = data["authed_user"]["id"]
+    # 사용자별 디렉토리 생성
+    base_dir = f"data/{user_id}"
+    os.makedirs(base_dir, exist_ok=True)
 
-    with open("user_token.txt", "w") as f:
-        f.write(f"{user_id}:{user_token}")
+    # 개인 토큰 저장
+    with open(f"{base_dir}/user_token.txt", "w") as f:
+        f.write(user_token)
 
-    return {"message": "Slack 인증 완료!", "user_id": user_id}
+    # 프로필 저장
+    with open(f"{base_dir}/profile.json", "w") as f:
+        json.dump(user, f, indent=2)
+
+    # 초기 conversations / aliases 파일 생성
+    if not os.path.exists(f"{base_dir}/conversations.json"):
+        with open(f"{base_dir}/conversations.json", "w") as f:
+            f.write("{}")
+
+    if not os.path.exists(f"{base_dir}/aliases.json"):
+        with open(f"{base_dir}/aliases.json", "w") as f:
+            f.write("{}")
+
+    return {
+        "message": "Slack 인증 완료!",
+        "user_id": user_id,
+        "folder": base_dir,
+        "note": "이제부터 이 사용자의 DM을 polling하고, UI에서 사용 가능함.",
+    }

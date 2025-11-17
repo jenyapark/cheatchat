@@ -96,3 +96,69 @@ def generate_reply_candidates(user_text: str, tone: str = "friendly_formal"):
     except Exception as e:
         print("[LLM ERROR]", e)
         return []
+    
+def generate_contextual_reply(conversation: list, tone: str = "friendly_formal", limit: int = 8):
+
+    tone_instruction = {
+        "friendly_formal": "친근하고 따뜻한 존댓말(~요)으로 자연스럽게.",
+        "soft_formal": "부드럽고 공손한 직장인 말투(~습니다)로 간결하게.",
+        "casual": "친근하고 자연스러운 반말로.",
+    }.get(tone, "")
+
+    if not conversation:
+        return []
+
+    # 대화를 시간순 정렬
+    conversation = sorted(conversation, key=lambda x: x.get("ts", 0))[-limit:]
+
+    # 마지막 메시지가 상대방(incoming)인지 체크
+    last = conversation[-1]
+    if last["direction"] != "incoming":
+        return ["(마지막 메시지가 상대 메시지가 아니라 답장이 필요하지 않습니다.)"]
+
+    # 전체 대화를 하나의 prompt로 구성
+    dialog_text = "\n".join(
+        f"{'상대' if m['direction']=='incoming' else '나'}: {m['text']}"
+        for m in conversation
+    )
+
+    prompt = f"""
+너는 Slack DM 대화를 기반으로 상황을 파악하고,
+마지막 상대방 메시지에 대한 답장 후보 3개를 생성하는 어시스턴트야.
+
+다음은 Slack DM 대화의 최근 내용입니다:
+
+{dialog_text}
+
+위 맥락을 바탕으로, 마지막 상대 메시지 "{last['text']}"에 대한
+답장 후보 3개를 만들어 주세요.
+
+선택된 말투는 : {tone_instruction}
+
+조건:
+- 답장은 1~2문장
+- 자연스럽고 맥락을 반영
+- 번호를 붙여 출력 번호 형식: 1) ~~~
+
+"""
+
+    try:
+        model = genai.GenerativeModel(MODEL_NAME)
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+
+        candidates = []
+        for line in raw.split("\n"):
+            if ")" in line:
+                try:
+                    cands = line.split(")", 1)[1].strip()
+                    if cands:
+                        candidates.append(cands)
+                except:
+                    continue
+
+        return candidates[:3]
+
+    except Exception as e:
+        print("[LLM ERROR - contextual reply]", e)
+        return []
