@@ -6,24 +6,13 @@ import { useEffect, useState } from "react";
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 export default function Home() {
-  const [tone, setTone] = useState("friendly_formal");
   const [list, setList] = useState([]);
 
   useEffect(() => {
     const url = `${API}/ui/messages`;
-    console.log("FETCHING:", url);
-
-    fetch(url, {
-      headers: {
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0"
-      }
-    })
+    fetch(url)
       .then(async (r) => {
         const text = await r.text();
-        console.log("STATUS =", r.status);
-        console.log("BODY =", text.substring(0, 300));
-
         try {
           const data = JSON.parse(text);
           setList(data.conversations || []);
@@ -35,115 +24,60 @@ export default function Home() {
   }, []);
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>DM 목록</h1>
+    <div style={{ padding: 20, maxWidth: 720, margin: "0 auto", fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" }}>
+      <h1 style={{ fontSize: 26, marginBottom: 20 }}>DM 목록</h1>
 
-      {/* 말투 선택*/}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontWeight: "bold", marginBottom: 8 }}>말투 선택</div>
-
-        <div style={{ display: "flex", gap: "12px", fontSize: "14px" }}>
-          
-          <label style={{ cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="tone"
-              value="friendly_formal"
-              checked={tone === "friendly_formal"}
-              onChange={() => setTone("friendly_formal")}
-              style={{ marginRight: 6 }}
-            />
-            친근한 존댓말
-          </label>
-
-          <label style={{ cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="tone"
-              value="soft_formal"
-              checked={tone === "soft_formal"}
-              onChange={() => setTone("soft_formal")}
-              style={{ marginRight: 6 }}
-            />
-            부드러운 포멀
-          </label>
-
-          <label style={{ cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="tone"
-              value="casual"
-              checked={tone === "casual"}
-              onChange={() => setTone("casual")}
-              style={{ marginRight: 6 }}
-            />
-            편한 반말
-          </label>
-
+      {list.length === 0 && (
+        <div style={{ padding: 40, textAlign: "center", color: "#777" }}>
+          아직 들어온 DM이 없습니다.
         </div>
-      </div>
-      {/*  [추가 영역 끝]  */}
+      )}
 
-      {list.length === 0 && <div>아직 들어온 DM 없음</div>}
-
-      {list.map(item => (
-        <div 
-          key={item.id} 
-          style={{
-            marginBottom: 16,
-            padding: "12px 0",
-            borderBottom: "1px solid #ddd",
-          }}
-        >
-          <Link 
-            href={`/${item.id}?tone=${tone}`} 
-            style={{ textDecoration: "none", color: "inherit" }}>
-
-            {/* 상단: 이름 + 숫자 배지 */}
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center"
-            }}>
-              <div style={{ 
-                fontWeight: "bold", 
-                fontSize: "16px" 
-              }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {list.map(item => (
+          <Link
+            key={item.id}
+            href={`/${item.id}`}
+            style={{
+              textDecoration: "none",
+              color: "inherit",
+              background: "white",
+              padding: "16px 20px",
+              borderRadius: 12,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              display: "block",
+              transition: "0.2s all",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontWeight: "bold", fontSize: 17 }}>
                 {item.name}
               </div>
 
-              {/* unreadCount > 0이면 숫자 배지 표시 */}
               {item.unreadCount > 0 && (
                 <div style={{
-                  backgroundColor: "red",
+                  backgroundColor: "#ff5252",
                   color: "white",
-                  padding: "2px 8px",
-                  borderRadius: "12px",
-                  fontSize: "12px",
-                  fontWeight: "bold"
+                  padding: "3px 10px",
+                  borderRadius: "14px",
+                  fontSize: 12,
+                  fontWeight: "bold",
                 }}>
                   {item.unreadCount}
                 </div>
               )}
             </div>
 
-            {/* 마지막 메시지 미리보기 */}
-            <div style={{ marginTop: 6, fontSize: "14px" }}>
+            <div style={{ marginTop: 8, fontSize: 14, color: "#444" }}>
               {item.preview}
             </div>
 
-            {/* 시간 */}
-            <div style={{ 
-              fontSize: "12px", 
-              color: "#666",
-              marginTop: 4 
-            }}>
+            <div style={{ marginTop: 6, fontSize: 12, color: "#888" }}>
               {item.time}
             </div>
-
           </Link>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
