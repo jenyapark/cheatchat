@@ -7,7 +7,10 @@ from openai import OpenAI
 from IPython.display import Markdown, display, update_display
 from llmcl2 import partner_msgs, my_msgs
 
+
 load_dotenv()
+print(">>> SLACK_BOT_TOKEN =", os.getenv("SLACK_BOT_TOKEN"))
+
 client = WebClient(token="SLACK_BOT_TOKEN")
 user_id = "U09QQB0J7S6"  # 내 user id
 partner_id = "U09RBS32291"
@@ -39,7 +42,7 @@ for msg in history["messages"]:
 
 
 load_dotenv(override=True)
-openai_api_key = os.getenv('OPENAI_API_KEY')
+openai_api_key = os.getenv('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')
 
 if openai_api_key:
     print(f"OpenAI API Key exists and begins {openai_api_key[:8]}")
