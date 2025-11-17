@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+slack_sdk
+pydantic
+aiohttp
+httpx
+google-generativeai
