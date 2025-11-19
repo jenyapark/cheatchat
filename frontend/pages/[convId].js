@@ -24,6 +24,7 @@ export default function Conversation() {
   const [selectedTone, setSelectedTone] = useState(null);
 
   const bottomRef = useRef(null);
+  const prevToneRef = useRef(null);
 
   const scrollToBottom = () => {
     if (bottomRef.current) {
@@ -62,53 +63,71 @@ const handleRelationshipChange = (newRel) => {
 };
 
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // 메시지 변경 → 자동 스크롤
+useEffect(() => {
+  scrollToBottom();
+}, [messages]);
 
-  //  tone_options 가져오기
-  useEffect(() => {
-    if (!convId) return;
 
-    fetch(`${API}/ui/tone_options/${convId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setRelationship(data.relationship || "");
-        setToneOptions(data.tone_options || []);
+// 1) tone_options 가져오기
+useEffect(() => {
+  if (!convId) return;
+
+  fetch(`${API}/ui/tone_options/${convId}`)
+    .then((res) => res.json())
+    .then((data) => {
+      setRelationship(data.relationship || "");
+      setToneOptions(data.tone_options || []);
     });
-  }, [convId]);
+}, [convId]);
 
-  // 메시지 로드 + 후보 로드
-  useEffect(() => {
-    if (!convId || !selectedTone) return;
 
-    // 읽음 처리
-    fetch(`${API}/ui/mark_read`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: convId }),
-    }).catch(console.error);
+// 2) toneOptions 로딩 후 → selectedTone 자동 설정 (LLM 호출 X)
+useEffect(() => {
+  if (toneOptions.length > 0 && !selectedTone) {
+    const first = toneOptions[0];
+    setSelectedTone(first);  // 기본 말투 자동 선택
+  }
+}, [toneOptions]);
 
-    // tone을 Query로 넘김 (후보 생성)
-    fetch(`${API}/ui/messages/${convId}?tone=${selectedTone}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setMessages(data.messages || []);
-        setCands(data.candidates || []);
-      })
-      .catch(console.error);
 
-    // alias 불러오기
-    fetch(`${API}/ui/messages`)
-      .then((res) => res.json())
-      .then((data) => {
-        const found = data.conversations?.find((c) => c.id === convId);
-        if (found && found.name && found.name !== convId) {
-          setAlias(found.name);
-        }
-      })
-      .catch(console.error);
-  }, [convId, selectedTone]);
+// 3) 메시지 불러오기 (대화 내용)
+useEffect(() => {
+  if (!convId) return;
+
+  fetch(`${API}/ui/messages/${convId}`)
+    .then(res => res.json())
+    .then(data => setMessages(data.messages || []));
+}, [convId]);
+
+
+// 4) selectedTone 변경 → 후보 생성 
+useEffect(() => {
+  if (!convId || !selectedTone) return;
+  if (prevToneRef.current === selectedTone) return;
+  prevToneRef.current = selectedTone;
+
+  fetch(`${API}/ui/generate_candidates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conv_id: convId, tone: selectedTone })
+  })
+    .then(res => res.json())
+    .then(data => setCands(data.candidates || []));
+}, [selectedTone, convId]);
+
+// 5) alias 로드
+useEffect(() => {
+  fetch(`${API}/ui/messages`)
+    .then(res => res.json())
+    .then(data => {
+      const found = data.conversations?.find((c) => c.id === convId);
+      if (found && found.name && found.name !== convId) {
+        setAlias(found.name);
+      }
+    });
+}, [convId]);
+
 
   const showToast = (message) => {
     if (typeof document === "undefined") return;
@@ -163,6 +182,15 @@ const handleRelationshipChange = (newRel) => {
         text,
       }),
     });
+
+    setMessages(prev => [
+    ...prev,
+    {
+      text,
+      direction: "outgoing",
+      ts: Date.now() / 1000,
+    }
+  ]);
 
     showToast("메시지가 전송되었습니다!");
     setText("");

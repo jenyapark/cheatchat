@@ -46,8 +46,6 @@ def process_event(event):
     storage.save_incoming(conv_id, text)
 
     # 후보 생성
-    cands = generate_reply_candidates(text)
-    storage.save_candidates(conv_id, cands)
 
 
 @router.post("/slack/events")
