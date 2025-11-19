@@ -5,3 +5,8 @@ venv/
 *.pyc
 .DS_Store
 user_token.txt
+user_settings.json
+conversations.json
+aliases.json
+last_ts.json
+user_token.txt
