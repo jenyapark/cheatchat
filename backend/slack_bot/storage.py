@@ -92,17 +92,25 @@ class MemoryStorage:
         msgs = self.messages.get(conv_id, [])
         if not msgs:
             return False
-
-        last_msg_ts = msgs[-1]["ts"]
+        
         last_read_ts = self.last_read.get(conv_id, 0)
 
-        return last_msg_ts > last_read_ts
+        incoming = [m for m in msgs if m.get("direction") == "incoming"]
+        if not incoming:
+            return False
+        last_incoming_ts = incoming[-1]["ts"]
+
+        return last_incoming_ts > last_read_ts
     
     def get_unread_count(self, conv_id):
         last_read = self.last_read.get(conv_id, 0)
         msgs = self.messages.get(conv_id, [])
 
-        return sum(1 for m in msgs if m["ts"] > last_read)
+    # incoming 메시지만 unread 카운트로 계산
+        return sum(
+            1 for m in msgs
+            if m["ts"] > last_read and m.get("direction") == "incoming"
+        )
 
 
     def load_aliases(self):

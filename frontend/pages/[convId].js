@@ -52,7 +52,7 @@ const handleRelationshipChange = (newRel) => {
   // 관계 바뀌면 즉시 tone options도 미리 변경
   const map = {
     close_friend: ["반말-편한","반말-장난","귀엽고 친근한 말투","담백한 반말"],
-    coworker: ["친근한 존댓말","업무용 존댓말"],
+    coworker: ["친근한 존댓말","업무용 존댓말",  "유머·밈 톤", "매우 격식 있는 톤"],
     boss: ["최대한 정중한 말투","보고/업무 보고 톤"],
     acquaintance: ["부드러운 존댓말","반존칭"],
     lover: ["다정한 말투","귀엽고 애정 있는 말투","편안한 반말"],
@@ -61,6 +61,12 @@ const handleRelationshipChange = (newRel) => {
 
   setToneOptions(map[newRel] || []);
 };
+
+const fetchConversations = async () => {
+  const res = await fetch(`${API}/ui/messages`);
+  const data = await res.json();
+};
+
 
 
   // 메시지 변경 → 자동 스크롤
@@ -174,16 +180,24 @@ useEffect(() => {
 
   //최종 메시지 전송
   const send = async () => {
-    await fetch(`${API}/ui/send?tone=${selectedTone}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation_id: convId,
-        text,
-      }),
-    });
+  // 1) 메시지 전송
+  await fetch(`${API}/ui/send?tone=${selectedTone}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      conversation_id: convId,
+      text,
+    }),
+  });
 
-    setMessages(prev => [
+  // 2) 읽음 처리
+  await fetch(`${API}/ui/mark_read/${convId}`, {
+    method: "POST",
+  });
+
+
+  // 4) 로컬 메시지 반영
+  setMessages(prev => [
     ...prev,
     {
       text,
@@ -192,9 +206,12 @@ useEffect(() => {
     }
   ]);
 
-    showToast("메시지가 전송되었습니다!");
-    setText("");
-  };
+  fetchConversations(); 
+
+  showToast("메시지가 전송되었습니다!");
+  setText("");
+};
+
 
   return (
     <div
