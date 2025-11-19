@@ -40,8 +40,10 @@ def generate_ai_response(text: str, tone: str = "friendly_formal"):
         return f"AI Error: {str(e)}"
 
 
-def generate_reply_candidates(messages, tone: str):
+def generate_reply_candidates(messages, tone: str, relationship: str):
     try:
+        if messages and messages[-1].get("direction") == "outgoing":
+            return ["(내가 보낸 메시지이므로 답장을 생성하지 않습니다.)"]
         recent = messages[-3:]
         context = "\n".join([f"{m['direction']}: {m['text']}" for m in recent])
         last = recent[-1]["text"]
@@ -54,6 +56,7 @@ def generate_reply_candidates(messages, tone: str):
 "{last}"
 
 선택된 말투: "{tone}"
+대화 상대와의 관계: "{relationship}"
 
 조건:
 - 1~2문장

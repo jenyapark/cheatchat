@@ -26,11 +26,12 @@ def format_relative(ts):
     else:
         return f"{int(diff/86400)}일 전"
 
-@router.post("/ui/mark_read")
-def mark_read(data: dict):
-    conv_id = data["id"]
+@router.post("/ui/mark_read/{conv_id}")
+def mark_read(conv_id: str):
     storage.mark_read(conv_id)
     return {"ok": True}
+
+
 
 
 
@@ -115,6 +116,12 @@ def get_tone_options(conv_id: str):
         "tone_options": tone_options
     }
 
+@router.get("/ui/messages/{conv_id}")
+def get_messages(conv_id: str):
+    msgs = storage.get_messages(conv_id)
+    return {"messages": msgs}
+
+
 
 @router.post("/ui/set_relationship")
 def set_relationship(payload: dict):
@@ -163,12 +170,13 @@ def debug_usernames():
 def generate_candidates(payload: dict):
     conv_id = payload["conv_id"]
     tone = payload["tone"]
+    relationship = payload.get("relationship", "coworker")
 
     # 대화 전체 불러오기
     data = storage.get_conversation(conv_id)
     messages = data.get("messages", [])
 
     # LLM 후보 생성
-    candidates = generate_reply_candidates(messages, tone)
+    candidates = generate_reply_candidates(messages, tone, relationship)
 
     return {"candidates": candidates}
