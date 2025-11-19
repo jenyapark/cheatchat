@@ -7,16 +7,24 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 
 export default function Conversation() {
   const router = useRouter();
-  const { convId, tone: toneQuery } = router.query;
+  const { convId, tone } = router.query;
 
-  const tone = toneQuery || "friendly_formal";
+  console.log("convId:", convId); 
+
+
 
   const [messages, setMessages] = useState([]);
   const [cands, setCands] = useState([]);
   const [text, setText] = useState("");
   const [alias, setAlias] = useState("");
 
+  const [relationship, setRelationship] = useState("");
+
+  const [toneOptions, setToneOptions] = useState([]);
+  const [selectedTone, setSelectedTone] = useState(null);
+
   const bottomRef = useRef(null);
+  const prevToneRef = useRef(null);
 
   const scrollToBottom = () => {
     if (bottomRef.current) {
@@ -24,42 +32,102 @@ export default function Conversation() {
     }
   };
 
-  // 메시지 바뀔 때마다 아래로 스크롤
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const saveRelationship = async () => {
+  await fetch(`${API}/ui/set_relationship`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      conv_id: convId,
+      relationship,
+    }),
 
-  // 대화 내용 / 후보 / alias 로드
-  useEffect(() => {
-    if (!convId) return;
+  });
+  
+  showToast("관계가 저장되었습니다!");
+};
 
-    // 읽음 처리
-    fetch(`${API}/ui/mark_read`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: convId }),
-    }).catch(console.error);
+const handleRelationshipChange = (newRel) => {
+  setRelationship(newRel);
 
-    // 메시지 + AI 후보
-    fetch(`${API}/ui/messages/${convId}?tone=${tone}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setMessages(data.messages || []);
-        setCands(data.candidates || []);
-      })
-      .catch(console.error);
+  // 관계 바뀌면 즉시 tone options도 미리 변경
+  const map = {
+    close_friend: ["반말-편한","반말-장난","귀엽고 친근한 말투","담백한 반말"],
+    coworker: ["친근한 존댓말","업무용 존댓말"],
+    boss: ["최대한 정중한 말투","보고/업무 보고 톤"],
+    acquaintance: ["부드러운 존댓말","반존칭"],
+    lover: ["다정한 말투","귀엽고 애정 있는 말투","편안한 반말"],
+    customer: ["공식적인 응대 톤","친절한 존댓말"]
+  };
 
-    // alias 불러오기
-    fetch(`${API}/ui/messages`)
-      .then((res) => res.json())
-      .then((data) => {
-        const found = data.conversations?.find((c) => c.id === convId);
-        if (found && found.name && found.name !== convId) {
-          setAlias(found.name);
-        }
-      })
-      .catch(console.error);
-  }, [convId, tone]);
+  setToneOptions(map[newRel] || []);
+};
+
+
+  // 메시지 변경 → 자동 스크롤
+useEffect(() => {
+  scrollToBottom();
+}, [messages]);
+
+
+// 1) tone_options 가져오기
+useEffect(() => {
+  if (!convId) return;
+
+  fetch(`${API}/ui/tone_options/${convId}`)
+    .then((res) => res.json())
+    .then((data) => {
+      setRelationship(data.relationship || "");
+      setToneOptions(data.tone_options || []);
+    });
+}, [convId]);
+
+
+// 2) toneOptions 로딩 후 → selectedTone 자동 설정 (LLM 호출 X)
+useEffect(() => {
+  if (toneOptions.length > 0 && !selectedTone) {
+    const first = toneOptions[0];
+    setSelectedTone(first);  // 기본 말투 자동 선택
+  }
+}, [toneOptions]);
+
+
+// 3) 메시지 불러오기 (대화 내용)
+useEffect(() => {
+  if (!convId) return;
+
+  fetch(`${API}/ui/messages/${convId}`)
+    .then(res => res.json())
+    .then(data => setMessages(data.messages || []));
+}, [convId]);
+
+
+// 4) selectedTone 변경 → 후보 생성 
+useEffect(() => {
+  if (!convId || !selectedTone) return;
+  if (prevToneRef.current === selectedTone) return;
+  prevToneRef.current = selectedTone;
+
+  fetch(`${API}/ui/generate_candidates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conv_id: convId, tone: selectedTone })
+  })
+    .then(res => res.json())
+    .then(data => setCands(data.candidates || []));
+}, [selectedTone, convId]);
+
+// 5) alias 로드
+useEffect(() => {
+  fetch(`${API}/ui/messages`)
+    .then(res => res.json())
+    .then(data => {
+      const found = data.conversations?.find((c) => c.id === convId);
+      if (found && found.name && found.name !== convId) {
+        setAlias(found.name);
+      }
+    });
+}, [convId]);
+
 
   const showToast = (message) => {
     if (typeof document === "undefined") return;
@@ -90,18 +158,6 @@ export default function Conversation() {
     }, 2000);
   };
 
-  // 말투 변경
-  const handleToneChange = (newTone) => {
-    router.push(
-      {
-        pathname: router.pathname,
-        query: { ...router.query, convId, tone: newTone },
-      },
-      undefined,
-      { shallow: true }
-    );
-  };
-
   // alias 저장
   const saveAlias = async () => {
     await fetch(`${API}/ui/set_alias`, {
@@ -116,9 +172,9 @@ export default function Conversation() {
     showToast("이름이 저장되었습니다.");
   };
 
-  // 메시지 보내기
+  //최종 메시지 전송
   const send = async () => {
-    await fetch(`${API}/ui/send?tone=${tone}`, {
+    await fetch(`${API}/ui/send?tone=${selectedTone}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -126,6 +182,15 @@ export default function Conversation() {
         text,
       }),
     });
+
+    setMessages(prev => [
+    ...prev,
+    {
+      text,
+      direction: "outgoing",
+      ts: Date.now() / 1000,
+    }
+  ]);
 
     showToast("메시지가 전송되었습니다!");
     setText("");
@@ -140,7 +205,7 @@ export default function Conversation() {
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* 상단 헤더: 대화방 제목 + 톤 선택 */}
+      {/* 상단 헤더 */}
       <header
         style={{
           background: "white",
@@ -148,75 +213,65 @@ export default function Conversation() {
           borderRadius: 10,
           boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
           marginBottom: 20,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
         }}
       >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20 }}>{alias || convId}</h1>
-          <div style={{ color: "#666", fontSize: 14, marginTop: 4 }}>
-            말투:
-            <div style={{ display: "inline-flex", gap: 10, marginLeft: 8 }}>
-              {/* 친근한 존댓말 */}
-              <button
-                onClick={() => handleToneChange("friendly_formal")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border:
-                    tone === "friendly_formal"
-                      ? "2px solid #64b5f6"
-                      : "1px solid #ccc",
-                  background:
-                    tone === "friendly_formal" ? "#e3f2fd" : "#f9f9f9",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  transition: "0.2s all",
-                }}
-              >
-                친근한 존댓말
-              </button>
+        <h1 style={{ margin: 0, fontSize: 20 }}>{alias || convId}</h1>
 
-              {/* 부드러운 포멀 */}
-              <button
-                onClick={() => handleToneChange("soft_formal")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border:
-                    tone === "soft_formal"
-                      ? "2px solid #9575cd"
-                      : "1px solid #ccc",
-                  background: tone === "soft_formal" ? "#ede7f6" : "#f9f9f9",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  transition: "0.2s all",
-                }}
-              >
-                부드러운 포멀
-              </button>
+        <section style={{ marginBottom: 20 }}>
+  <h2 style={{ fontSize: 18 }}>관계 설정</h2>
 
-              {/* 편한 반말 */}
-              <button
-                onClick={() => handleToneChange("casual")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border:
-                    tone === "casual"
-                      ? "2px solid #ffb74d"
-                      : "1px solid #ccc",
-                  background: tone === "casual" ? "#fff3e0" : "#f9f9f9",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  transition: "0.2s all",
-                }}
-              >
-                편한 반말
-              </button>
-            </div>
-          </div>
+  <div>현재 관계: {relationship}</div>
+
+  <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+    <select
+      value={relationship}
+      onChange={(e) => handleRelationshipChange(e.target.value)}
+      style={{ padding: 8, borderRadius: 8 }}
+    >
+      <option value="close_friend">친한 친구</option>
+      <option value="coworker">직장 동료</option>
+      <option value="boss">상사</option>
+      <option value="acquaintance">지인</option>
+      <option value="lover">연인</option>
+      <option value="customer">고객</option>
+    </select>
+
+    <button
+      onClick={saveRelationship}
+      style={{
+        padding: "8px 12px",
+        borderRadius: 8,
+        background: "#4a90e2",
+        color: "white",
+        border: "none",
+        cursor: "pointer",
+      }}
+    >
+      저장
+    </button>
+  </div>
+</section>
+
+
+        {/* 관계 기반 tone_options 버튼 UI */}
+        <div style={{ marginTop: 8, display: "flex", gap: 10 }}>
+          {toneOptions.map((tone) => (
+            <button
+              key={tone}
+              onClick={() => setSelectedTone(tone)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                border:
+                  selectedTone === tone ? "2px solid #4a90e2" : "1px solid #ccc",
+                background:
+                  selectedTone === tone ? "#e3f2fd" : "#f9f9f9",
+                cursor: "pointer",
+              }}
+            >
+              {tone}
+            </button>
+          ))}
         </div>
       </header>
 

@@ -20,6 +20,8 @@ def fetch_username(user_id, token):
     return user_id
 
 def process_event(event):
+    print("EVENT DEBUG:", json.dumps(event, indent=2, ensure_ascii=False))
+
     with open("user_token.txt") as f:
         my_id, token = f.read().split(":")
 
@@ -34,6 +36,8 @@ def process_event(event):
     text = event.get("text")
     conv_id = event.get("channel")
 
+    storage.save_user_id(conv_id, user)
+
     # 이름 저장
     username = fetch_username(user, token)
     storage.save_user(conv_id, username)
@@ -42,8 +46,6 @@ def process_event(event):
     storage.save_incoming(conv_id, text)
 
     # 후보 생성
-    cands = generate_reply_candidates(text)
-    storage.save_candidates(conv_id, cands)
 
 
 @router.post("/slack/events")

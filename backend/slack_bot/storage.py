@@ -4,6 +4,28 @@ import os, time
 
 ALIAS_FILE = "aliases.json"
 LAST_TS_FILE = "last_ts.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PRESET_PATH = os.path.join(BASE_DIR, "..", "tone_presets.json")
+
+with open(PRESET_PATH, "r", encoding="utf-8") as f:
+    presets = json.load(f)
+
+
+def load_json(path):
+    full = os.path.join(BASE_DIR, path)
+    if not os.path.exists(full):
+        return {}
+    with open(full, "r") as f:
+        return json.load(f)
+
+def save_json(path, data):
+    full = os.path.join(BASE_DIR, path)
+    with open(full, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+   
+
+
 
 class MemoryStorage:
     def __init__(self):
@@ -12,7 +34,39 @@ class MemoryStorage:
         self.usernames = {}  
         self.alias = {}
         self.last_read = {}
+        self.user_ids = {}
+    
+    @staticmethod
+    def load_json(path):
+        if not os.path.exists(path):
+            return {}
+        with open(path, "r") as f:
+            return json.load(f)
+        
+    @staticmethod
+    def save_json(path, data):
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    def save_user_id(self, conv_id, user_id):
+        self.usernames[conv_id] = user_id
+        print(f"[SAVE USER_ID] {conv_id} -> {user_id}")
 
+    def get_user_id(self, conv_id):
+        return self.user_ids.get(conv_id)
+
+
+    @staticmethod
+    def get_relationship(user_id: str):
+        data = load_json("relationship.json")
+        return data.get(user_id, "acquaintance")
+
+    @staticmethod
+    def set_relationship(user_id: str, relationship: str):
+        data = load_json("relationship.json")
+        data[user_id] = relationship
+        save_json("relationship.json", data)
+ 
     @staticmethod
     def load_last_ts():
         if not os.path.exists(LAST_TS_FILE):
@@ -26,6 +80,10 @@ class MemoryStorage:
     def save_last_ts(map_data):
         with open(LAST_TS_FILE, "w") as f:
             json.dump(map_data, f)
+    
+    def get_user_id(self, conv_id):
+        return self.usernames.get(conv_id, None)
+
 
     def mark_read(self, conv_id):
         self.last_read[conv_id] = time.time()
@@ -83,9 +141,9 @@ class MemoryStorage:
         self.candidates[conv_id] = cands
         print(f"[CANDIDATES] for {conv_id}: {cands}")
 
-    def save_outgoing(self, conv_id, text):
+    def save_outgoing(self, conv_id, text, tone = None):
         self.messages.setdefault(conv_id, [])
-        self.messages[conv_id].append({"text": text, "direction": "outgoing", "ts": time.time()})
+        self.messages[conv_id].append({"text": text, "direction": "outgoing", "tone": tone, "ts": time.time()})
 
     def get_conversations(self):
         return list(self.messages.keys())

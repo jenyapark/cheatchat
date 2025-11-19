@@ -39,63 +39,57 @@ def generate_ai_response(text: str, tone: str = "friendly_formal"):
     except Exception as e:
         return f"AI Error: {str(e)}"
 
-def generate_reply_candidates(user_text: str, tone: str = "friendly_formal"):
 
-    tone_instruction = {
-        "friendly_formal": (
-            "말투는 친근하고 따뜻하지만 반드시 존댓말(~요, ~세요)을 사용하세요. "
-            "반말이나 반존대는 사용하지 마세요. 너무 인터넷 은어는 자제하세요."
-        ),
-        "business_formal": (
-            "말투는 공손하고 단정한 업무용 존댓말을 사용하세요. "
-            "친근한 표현은 소폭 허용되지만, 이모지와 과한 감탄사는 최소화하세요."
-        ),
-        "casual_banmal": (
-            "말투는 편하고 친근한 반말을 사용하세요. "
-            "상대를 친구처럼 대하되, 막말이나 공격적인 표현은 절대 사용하지 마세요."
-        ),
-    }.get(tone, "")
-    
-    prompt = (
-        "너는 Slack DM 답장 후보 3개를 만들어주는 비서야. "
-        "각 답장은 1~2문장으로 자연스럽고 상황에 맞아야 한다.\n"
-        f"{tone_instruction}"
-    )
-
+def generate_reply_candidates(messages, tone: str):
     try:
+        recent = messages[-3:]
+        context = "\n".join([f"{m['direction']}: {m['text']}" for m in recent])
+        last = recent[-1]["text"]
+
         prompt = f"""
-상대방이 다음과 같은 메시지를 보냈습니다:
+대화 내용:
+{context}
 
-"{user_text}"
+마지막 메시지:
+"{last}"
 
-선택된 말투는 "{tone}" 입니다.
-이 말투에 맞추어 **답장 후보 3개**를 만들어 주세요.
+선택된 말투: "{tone}"
 
 조건:
-- 각 답장은 1~2문장
-- 너무 길지 않게
-- 번호를 붙여 출력
-
-출력 형식 예시:
-1) 첫 번째 답장
-2) 두 번째 답장
-3) 세 번째 답장
+- 1~2문장
+- 자연스럽게
+- 답장 후보 3개 생성
+- 1), 2), 3) 또는 1. 2. 3. 아무 형식도 허용
 """
 
         model = genai.GenerativeModel(MODEL_NAME)
         response = model.generate_content(prompt)
-
         raw = response.text.strip()
 
         lines = raw.split("\n")
-        candidates = [line[line.index(")")+1:].strip()
-                      for line in lines if ")" in line]
+
+        candidates = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith(("1)", "1.", "1 )")):
+                candidates.append(line.split(")",1)[-1].split(".",1)[-1].strip())
+            elif line.startswith(("2)", "2.", "2 )")):
+                candidates.append(line.split(")",1)[-1].split(".",1)[-1].strip())
+            elif line.startswith(("3)", "3.", "3 )")):
+                candidates.append(line.split(")",1)[-1].split(".",1)[-1].strip())
+
+        # 혹시 번호 못 찾았으면 그냥 전체 문장에서 문장 단위 분리
+        if not candidates:
+            sentences = [s.strip() for s in raw.split("\n") if len(s.strip()) > 5]
+            candidates = sentences[:3]
 
         return candidates[:3]
 
     except Exception as e:
         print("[LLM ERROR]", e)
         return []
+
+
     
 def generate_contextual_reply(conversation: list, tone: str = "friendly_formal", limit: int = 8):
 
