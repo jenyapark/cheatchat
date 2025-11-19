@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Request, Query
 from slack_bot.llm_engine import generate_reply_candidates, generate_contextual_reply
-import requests, os, time
+import requests, os, time, json
 from slack_bot.storage import storage
 
 router = APIRouter()
@@ -93,10 +93,47 @@ def get_message(conv_id: str, tone: str = Query("friendly_formal")):
         "candidates": candidates,
     }
 
+@router.get("/ui/tone_options/{conv_id}")
+def get_tone_options(conv_id: str):
+    user_id = storage.get_user_id(conv_id)
+    storage.save_user_id(conv_id, user_id)
+    if user_id is None:
+        return {
+            "relationship": "acquaintance",
+            "tone_options": []
+        }
+
+    relationship = storage.get_relationship(user_id)
+
+    with open("tone_presets.json", "r") as f:
+        presets = json.load(f)
+
+    tone_options = presets.get(relationship, presets.get("acquaintance", []))
+
+    return {
+        "relationship": relationship,
+        "tone_options": tone_options
+    }
+
+
+@router.post("/ui/set_relationship")
+def set_relationship(payload: dict):
+    conv_id = payload["conv_id"]
+    relationship = payload["relationship"]
+
+    user_id = storage.get_user_id(conv_id)
+    if not user_id:
+        return {"ok": False, "error": "user_id_not_found"}
+
+    storage.set_relationship(user_id, relationship)
+    return {"ok": True}
+
+
 @router.post("/ui/send")
 def send_message(payload: dict):
     conv_id = payload["conversation_id"]
     text = payload["text"]
+    tone = payload.get("tone")
 
     with open("user_token.txt") as f:
         my_id, token = f.read().split(":")

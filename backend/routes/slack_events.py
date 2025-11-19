@@ -20,6 +20,8 @@ def fetch_username(user_id, token):
     return user_id
 
 def process_event(event):
+    print("EVENT DEBUG:", json.dumps(event, indent=2, ensure_ascii=False))
+
     with open("user_token.txt") as f:
         my_id, token = f.read().split(":")
 
@@ -33,6 +35,8 @@ def process_event(event):
     user = event.get("user")
     text = event.get("text")
     conv_id = event.get("channel")
+
+    storage.save_user_id(conv_id, user)
 
     # 이름 저장
     username = fetch_username(user, token)

@@ -87,11 +87,13 @@ def start_polling_loop():
             for msg in messages:
                 user = msg.get("user")
                 text = msg.get("text", "")
+                user_id = msg.get("user")
 
                 if user == MY_ID:
                     continue
 
                 storage.save_incoming(dm, text)
+                storage.save_user_id(dm, user_id)
         # 한 번에 하나의 DM만 처리함 → Rate 제한 보호
         time.sleep(2)
         
